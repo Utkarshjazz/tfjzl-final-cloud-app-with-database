@@ -93,7 +93,39 @@ class Enrollment(models.Model):
     date_enrolled = models.DateField(default=now)
     mode = models.CharField(max_length=5, choices=COURSE_MODES, default=AUDIT)
     rating = models.FloatField(default=5.0)
+# Question model
+class Question(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    question_text = models.TextField()
+    grade = models.IntegerField(default=1)
 
+    def is_get_score(self, selected_ids):
+        correct_choices = set(
+            self.choice_set.filter(is_correct=True)
+            .values_list('id', flat=True)
+        )
+        selected_choices = set(selected_ids)
+
+        return correct_choices == selected_choices
+
+
+# Choice model
+class Choice(models.Model):
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE
+    )
+    choice_text = models.TextField()
+    is_correct = models.BooleanField(default=False)
+
+
+# Submission model
+class Submission(models.Model):
+    enrollment = models.ForeignKey(
+        Enrollment,
+        on_delete=models.CASCADE
+    )
+    choices = models.ManyToManyField(Choice)
 
 # One enrollment could have multiple submission
 # One submission could have multiple choices
