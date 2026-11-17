@@ -1,15 +1,32 @@
+# Online Course App: Assessment Feature
 
-**General Notes**
+This Django app extends the starter online course site with course questions, multiple-select choices, learner submissions, and scored assessment results.
 
-An `onlinecourse` app has already been provided in this repo upon which you will be adding a new assesement feature.
+## Run in the Skills Network lab
 
-- If you want to develop the final project on Theia hosted by [IBM Developer Skills Network](https://labs.cognitiveclass.ai/), you will need to create the same project structure on Theia workspace and save it everytime you close the browser
-- Or you could develop the final project locally by setting up your own Python runtime and IDE
-- Hints for the final project are left on source code files
-- You may choose any cloud platform for deployment (default is IBM Cloud Foundry)
-- Depends on your deployment, you may choose any SQL database Django supported such as SQLite3, PostgreSQL, and MySQL (default is SQLite3)
+```sh
+pip install -r requirements.txt
+python3 manage.py makemigrations onlinecourse
+python3 manage.py migrate
+python3 manage.py createsuperuser
+python3 manage.py runserver
+```
 
-**ER Diagram**
-For your reference, we have prepared the ER diagram design for the new assesement feature.
+Open `/admin/` to add an instructor, course, lessons, questions, and choices. Sign in as a learner, enroll in the course, then submit the assessment from the course details page. Each submission is stored against its enrollment, and only that learner can view its result.
 
-![Onlinecourse ER Diagram](https://github.com/ibm-developer-skills-network/final-cloud-app-with-database/blob/master/static/media/course_images/onlinecourse_app_er.png)
+## Assessment behavior
+
+- A question may have several correct choices.
+- A learner earns the question's points only when every correct choice and no incorrect choice is selected.
+- The result page shows the percentage, point total, selected answers, and correct answers. Scores above 80% pass.
+- Learners may retake the assessment; each attempt creates a separate submission.
+
+## Project layout
+
+- `onlinecourse/models.py`: question, choice, and submission data models
+- `onlinecourse/admin.py`: course, question, lesson, choice, and submission admin forms
+- `onlinecourse/templates/onlinecourse/course_detail_bootstrap.html`: exam form
+- `onlinecourse/views.py` and `onlinecourse/urls.py`: submission and result flow
+- `onlinecourse/templates/onlinecourse/exam_result_bootstrap.html`: scored result and answer review
+
+The project uses SQLite by default. The existing ER diagram is available under `static/media/course_images/onlinecourse_app_er.png`.

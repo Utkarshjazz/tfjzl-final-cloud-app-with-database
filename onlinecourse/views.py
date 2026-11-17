@@ -6,6 +6,8 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views import generic
 from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 import logging
 
 # Get an instance of a logger
@@ -144,6 +146,18 @@ class CourseDetailView(generic.DetailView):
     model = Course
     template_name = 'onlinecourse/course_detail_bootstrap.html'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        course = context['course']
+        context['questions'] = Question.objects.filter(
+            course=course
+        ).prefetch_related('choice_set').order_by('id')
+        context['is_enrolled'] = (
+            self.request.user.is_authenticated and
+            check_if_enrolled(self.request.user, course)
+        )
+        return context
+
 
 def enroll(request, course_id):
     course = get_object_or_404(
@@ -178,6 +192,8 @@ def enroll(request, course_id):
 
 
 # Submit exam
+@login_required
+@require_POST
 def submit(request, course_id):
     """
     Create an exam submission for the enrolled user,
@@ -200,27 +216,13 @@ def submit(request, course_id):
     )
 
     # Create a new submission
-    submission = Submission.objects.create(
-        enrollment=enrollment
-    )
-
-    # Get selected answers
     selected_ids = extract_answers(request)
-
-    # Add selected choices to submission
-    for choice_id in selected_ids:
-        try:
-            choice = Choice.objects.get(
-                pk=choice_id
-            )
-
-            submission.choices.add(choice)
-
-        except Choice.DoesNotExist:
-            logger.error(
-                "Choice with id %s does not exist.",
-                choice_id
-            )
+    submission = Submission.objects.create(enrollment=enrollment)
+    valid_choices = Choice.objects.filter(
+        pk__in=selected_ids,
+        question__course=course
+    )
+    submission.choices.set(valid_choices)
 
     # Redirect to exam result
     return redirect(
@@ -232,26 +234,21 @@ def submit(request, course_id):
 
 # Extract answers from exam form
 def extract_answers(request):
-    submitted_answers = []
+    submitted_answers = set()
 
     for key in request.POST:
         if key.startswith('choice'):
-            value = request.POST[key]
-
-            try:
-                choice_id = int(value)
-                submitted_answers.append(choice_id)
-
-            except ValueError:
-                logger.error(
-                    "Invalid choice value: %s",
-                    value
-                )
+            for value in request.POST.getlist(key):
+                try:
+                    submitted_answers.add(int(value))
+                except (TypeError, ValueError):
+                    logger.warning("Ignoring invalid choice value: %s", value)
 
     return submitted_answers
 
 
 # Show exam result
+@login_required
 def show_exam_result(request, course_id, submission_id):
     """
     Display the exam result, calculate the learner's
@@ -265,43 +262,54 @@ def show_exam_result(request, course_id, submission_id):
 
     submission = get_object_or_404(
         Submission,
-        pk=submission_id
+        pk=submission_id,
+        enrollment__user=request.user,
+        enrollment__course=course
     )
 
-    # Get selected choices
-    selected_choices = submission.choices.all()
-
-    # Calculate score
-    score = 0
-
-    for choice in selected_choices:
-        if choice.is_correct:
-            score += choice.question.grade
-
-    # Get all questions for this course
+    selected_ids = set(
+        submission.choices.values_list('id', flat=True)
+    )
     questions = Question.objects.filter(
         course=course
-    )
+    ).prefetch_related('choice_set').order_by('id')
 
-    # Calculate total possible score
-    total_grade = 0
+    raw_score = 0
+    total_grade = sum(question.grade for question in questions)
+    question_results = []
 
     for question in questions:
-        total_grade += question.grade
+        choices = list(question.choice_set.all())
+        selected_for_question = {
+            choice.id for choice in choices if choice.id in selected_ids
+        }
+        correct = question.is_get_score(selected_for_question)
+        if correct:
+            raw_score += question.grade
+        question_results.append({
+            'question': question,
+            'choices': [
+                {
+                    'choice': choice,
+                    'selected': choice.id in selected_for_question,
+                    'is_correct': choice.is_correct,
+                }
+                for choice in choices
+            ],
+            'is_correct': correct,
+        })
 
-    # Determine whether the learner passed
-    passed = False
-
-    if total_grade > 0:
-        passed = score >= total_grade * 0.5
+    grade = round(raw_score * 100 / total_grade, 2) if total_grade else 0
+    passed = grade > 80
 
     context = {
         'course': course,
         'submission': submission,
-        'selected_choices': selected_choices,
+        'selected_choices': submission.choices.all(),
+        'question_results': question_results,
         'questions': questions,
-        'grade': score,
-        'score': score,
+        'grade': grade,
+        'score': raw_score,
         'total_grade': total_grade,
         'passed': passed,
     }
