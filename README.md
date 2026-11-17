@@ -25,7 +25,7 @@ Open `/admin/` to add an instructor, course, lessons, questions, and choices. Si
 
 - `onlinecourse/models.py`: question, choice, and submission data models
 - `onlinecourse/admin.py`: course, question, lesson, choice, and submission admin forms
-- `onlinecourse/templates/onlinecourse/course_detail_bootstrap.html`: exam form
+- `onlinecourse/templates/onlinecourse/course_details_bootstrap.html`: course detail page and exam form
 - `onlinecourse/views.py` and `onlinecourse/urls.py`: submission and result flow
 - `onlinecourse/templates/onlinecourse/exam_result_bootstrap.html`: scored result and answer review
 
