@@ -78,7 +78,7 @@ class AssessmentFlowTests(TestCase):
         )
         self.assertEqual(result.status_code, 200)
         self.assertContains(result, 'Congratulations')
-        self.assertContains(result, '100%')
+        self.assertContains(result, '100.0%')
         self.assertContains(result, 'Which choices are correct?')
 
     def test_question_requires_the_complete_correct_choice_set(self):
